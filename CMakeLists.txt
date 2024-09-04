@@ -43,6 +43,7 @@ else(UNIX)
 
     add_definitions(${GLEW_DEFINITIONS})
     include_directories(${GLEW_INCLUDE_DIR} ${GLFW_INCLUDE_DIR})
+    include_directories("${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
     set(LIBRARIES ${GLEW_LIBRARY} ${GLFW_LIBRARY} ${OPENGL_LIBRARY})
 endif(UNIX)
 
@@ -83,10 +84,17 @@ endif()
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE "$<$<AND:$<CONFIG:Debug,RelWithDebInfo>,$<COMPILE_LANGUAGE:CUDA>>:-G>")
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${CMAKE_PROJECT_NAME})
 
+# ---- 拷贝 shader 文件到可执行目录（推荐方式）----
 add_custom_command(
     TARGET ${CMAKE_PROJECT_NAME}
-    PRE_BUILD
+    POST_BUILD  # 注意这里改成 POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_SOURCE_DIR}/shaders
-        ${CMAKE_BINARY_DIR}/shaders
-    )
+        "${CMAKE_SOURCE_DIR}/shaders"
+        "$<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>/shaders"
+    COMMENT "Copying shaders to runtime output directory..."
+)
+
+set_source_files_properties(
+    src/kernel.cu
+    PROPERTIES LANGUAGE CUDA
+)
