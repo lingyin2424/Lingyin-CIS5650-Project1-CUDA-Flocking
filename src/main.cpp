@@ -21,22 +21,33 @@
 #define COHERENT_GRID 0
 
 // LOOK-1.2 - change this to adjust particle count in the simulation
-const int N_FOR_VIS = 5000;
+const int N_FOR_VIS = 8192;
 const float DT = 0.2f;
+
+// 添加模拟模式枚举
+enum SimulationMode {
+    MODE_NAIVE = 1,
+    MODE_SCATTERED_GRID = 2,
+    MODE_COHERENT_GRID = 3
+};
+
+// 添加全局变量来跟踪当前模式
+int currentSimulationMode = MODE_NAIVE;
 
 /**
 * C main function.
 */
 int main(int argc, char* argv[]) {
-  projectName = "5650 CUDA Intro: Boids";
+    projectName = "5650 CUDA Intro: Boids";
 
-  if (init(argc, argv)) {
-    mainLoop();
-    Boids::endSimulation();
-    return 0;
-  } else {
-    return 1;
-  }
+    if (init(argc, argv)) {
+        mainLoop();
+        Boids::endSimulation();
+        return 0;
+    }
+    else {
+        return 1;
+    }
 }
 
 //-------------------------------
@@ -44,260 +55,297 @@ int main(int argc, char* argv[]) {
 //-------------------------------
 
 std::string deviceName;
-GLFWwindow *window;
+GLFWwindow* window;
 
 /**
 * Initialization of CUDA and GLFW.
 */
-bool init(int argc, char **argv) {
-  // Set window title to "Student Name: [SM 2.0] GPU Name"
-  cudaDeviceProp deviceProp;
-  int gpuDevice = 0;
-  int device_count = 0;
-  cudaGetDeviceCount(&device_count);
-  if (gpuDevice > device_count) {
-    std::cout
-    << "Error: GPU device number is greater than the number of devices!"
-    << " Perhaps a CUDA-capable GPU is not installed?"
-    << std::endl;
-    return false;
-  }
-  cudaGetDeviceProperties(&deviceProp, gpuDevice);
-  int major = deviceProp.major;
-  int minor = deviceProp.minor;
+bool init(int argc, char** argv) {
+    // Set window title to "Student Name: [SM 2.0] GPU Name"
+    cudaDeviceProp deviceProp;
+    int gpuDevice = 0;
+    int device_count = 0;
+    cudaGetDeviceCount(&device_count);
+    if (gpuDevice > device_count) {
+        std::cout
+            << "Error: GPU device number is greater than the number of devices!"
+            << " Perhaps a CUDA-capable GPU is not installed?"
+            << std::endl;
+        return false;
+    }
+    cudaGetDeviceProperties(&deviceProp, gpuDevice);
+    int major = deviceProp.major;
+    int minor = deviceProp.minor;
 
-  std::ostringstream ss;
-  ss << projectName << " [SM " << major << "." << minor << " " << deviceProp.name << "]";
-  deviceName = ss.str();
+    std::ostringstream ss;
+    ss << projectName << " [SM " << major << "." << minor << " " << deviceProp.name << "]";
+    deviceName = ss.str();
 
-  // Window setup stuff
-  glfwSetErrorCallback(errorCallback);
+    // Window setup stuff
+    glfwSetErrorCallback(errorCallback);
 
-  if (!glfwInit()) {
-    std::cout
-    << "Error: Could not initialize GLFW!"
-    << " Perhaps OpenGL 3.3 isn't available?"
-    << std::endl;
-    return false;
-  }
+    if (!glfwInit()) {
+        std::cout
+            << "Error: Could not initialize GLFW!"
+            << " Perhaps OpenGL 3.3 isn't available?"
+            << std::endl;
+        return false;
+    }
 
-  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-  glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-  glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-  window = glfwCreateWindow(width, height, deviceName.c_str(), NULL, NULL);
-  if (!window) {
-    glfwTerminate();
-    return false;
-  }
-  glfwMakeContextCurrent(window);
-  glfwSetKeyCallback(window, keyCallback);
-  glfwSetCursorPosCallback(window, mousePositionCallback);
-  glfwSetMouseButtonCallback(window, mouseButtonCallback);
+    window = glfwCreateWindow(width, height, deviceName.c_str(), NULL, NULL);
+    if (!window) {
+        glfwTerminate();
+        return false;
+    }
+    glfwMakeContextCurrent(window);
+    glfwSetKeyCallback(window, keyCallback);
+    glfwSetCursorPosCallback(window, mousePositionCallback);
+    glfwSetMouseButtonCallback(window, mouseButtonCallback);
 
-  glewExperimental = GL_TRUE;
-  if (glewInit() != GLEW_OK) {
-    return false;
-  }
+    glewExperimental = GL_TRUE;
+    if (glewInit() != GLEW_OK) {
+        return false;
+    }
 
-  // Initialize drawing state
-  initVAO();
+    // Initialize drawing state
+    initVAO();
 
-  // Default to device ID 0. If you have more than one GPU and want to test a non-default one,
-  // change the device ID.
-  cudaGLSetGLDevice(0);
+    // Default to device ID 0. If you have more than one GPU and want to test a non-default one,
+    // change the device ID.
+    cudaGLSetGLDevice(0);
 
-  cudaGLRegisterBufferObject(boidVBO_positions);
-  cudaGLRegisterBufferObject(boidVBO_velocities);
+    cudaGLRegisterBufferObject(boidVBO_positions);
+    cudaGLRegisterBufferObject(boidVBO_velocities);
 
-  // Initialize N-body simulation
-  Boids::initSimulation(N_FOR_VIS);
+    // Initialize N-body simulation
+    Boids::initSimulation(N_FOR_VIS);
 
-  updateCamera();
+    updateCamera();
 
-  initShaders(program);
+    initShaders(program);
 
-  glEnable(GL_DEPTH_TEST);
+    glEnable(GL_DEPTH_TEST);
 
-  return true;
+    return true;
 }
 
 void initVAO() {
 
-  std::unique_ptr<GLfloat[]> bodies{ new GLfloat[4 * (N_FOR_VIS)] };
-  std::unique_ptr<GLuint[]> bindices{ new GLuint[N_FOR_VIS] };
+    std::unique_ptr<GLfloat[]> bodies{ new GLfloat[4 * (N_FOR_VIS)] };
+    std::unique_ptr<GLuint[]> bindices{ new GLuint[N_FOR_VIS] };
 
-  glm::vec4 ul(-1.0, -1.0, 1.0, 1.0);
-  glm::vec4 lr(1.0, 1.0, 0.0, 0.0);
+    glm::vec4 ul(-1.0, -1.0, 1.0, 1.0);
+    glm::vec4 lr(1.0, 1.0, 0.0, 0.0);
 
-  for (int i = 0; i < N_FOR_VIS; i++) {
-    bodies[4 * i + 0] = 0.0f;
-    bodies[4 * i + 1] = 0.0f;
-    bodies[4 * i + 2] = 0.0f;
-    bodies[4 * i + 3] = 1.0f;
-    bindices[i] = i;
-  }
+    for (int i = 0; i < N_FOR_VIS; i++) {
+        bodies[4 * i + 0] = 0.0f;
+        bodies[4 * i + 1] = 0.0f;
+        bodies[4 * i + 2] = 0.0f;
+        bodies[4 * i + 3] = 1.0f;
+        bindices[i] = i;
+    }
 
 
-  glGenVertexArrays(1, &boidVAO); // Attach everything needed to draw a particle to this
-  glGenBuffers(1, &boidVBO_positions);
-  glGenBuffers(1, &boidVBO_velocities);
-  glGenBuffers(1, &boidIBO);
+    glGenVertexArrays(1, &boidVAO); // Attach everything needed to draw a particle to this
+    glGenBuffers(1, &boidVBO_positions);
+    glGenBuffers(1, &boidVBO_velocities);
+    glGenBuffers(1, &boidIBO);
 
-  glBindVertexArray(boidVAO);
+    glBindVertexArray(boidVAO);
 
-  // Bind the positions array to the boidVAO by way of the boidVBO_positions
-  glBindBuffer(GL_ARRAY_BUFFER, boidVBO_positions); // bind the buffer
-  glBufferData(GL_ARRAY_BUFFER, 4 * (N_FOR_VIS) * sizeof(GLfloat), bodies.get(), GL_DYNAMIC_DRAW); // transfer data
+    // Bind the positions array to the boidVAO by way of the boidVBO_positions
+    glBindBuffer(GL_ARRAY_BUFFER, boidVBO_positions); // bind the buffer
+    glBufferData(GL_ARRAY_BUFFER, 4 * (N_FOR_VIS) * sizeof(GLfloat), bodies.get(), GL_DYNAMIC_DRAW); // transfer data
 
-  glEnableVertexAttribArray(positionLocation);
-  glVertexAttribPointer((GLuint)positionLocation, 4, GL_FLOAT, GL_FALSE, 0, 0);
+    glEnableVertexAttribArray(positionLocation);
+    glVertexAttribPointer((GLuint)positionLocation, 4, GL_FLOAT, GL_FALSE, 0, 0);
 
-  // Bind the velocities array to the boidVAO by way of the boidVBO_velocities
-  glBindBuffer(GL_ARRAY_BUFFER, boidVBO_velocities);
-  glBufferData(GL_ARRAY_BUFFER, 4 * (N_FOR_VIS) * sizeof(GLfloat), bodies.get(), GL_DYNAMIC_DRAW);
-  glEnableVertexAttribArray(velocitiesLocation);
-  glVertexAttribPointer((GLuint)velocitiesLocation, 4, GL_FLOAT, GL_FALSE, 0, 0);
+    // Bind the velocities array to the boidVAO by way of the boidVBO_velocities
+    glBindBuffer(GL_ARRAY_BUFFER, boidVBO_velocities);
+    glBufferData(GL_ARRAY_BUFFER, 4 * (N_FOR_VIS) * sizeof(GLfloat), bodies.get(), GL_DYNAMIC_DRAW);
+    glEnableVertexAttribArray(velocitiesLocation);
+    glVertexAttribPointer((GLuint)velocitiesLocation, 4, GL_FLOAT, GL_FALSE, 0, 0);
 
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, boidIBO);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, (N_FOR_VIS) * sizeof(GLuint), bindices.get(), GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, boidIBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, (N_FOR_VIS) * sizeof(GLuint), bindices.get(), GL_STATIC_DRAW);
 
-  glBindVertexArray(0);
+    glBindVertexArray(0);
 }
 
-void initShaders(GLuint * program) {
-  GLint location;
+void initShaders(GLuint* program) {
+    GLint location;
 
-  program[PROG_BOID] = glslUtility::createProgram(
-    "shaders/boid.vert.glsl",
-    "shaders/boid.geom.glsl",
-    "shaders/boid.frag.glsl", attributeLocations, 2);
+    program[PROG_BOID] = glslUtility::createProgram(
+        "shaders/boid.vert.glsl",
+        "shaders/boid.geom.glsl",
+        "shaders/boid.frag.glsl", attributeLocations, 2);
     glUseProgram(program[PROG_BOID]);
 
     if ((location = glGetUniformLocation(program[PROG_BOID], "u_projMatrix")) != -1) {
-      glUniformMatrix4fv(location, 1, GL_FALSE, &projection[0][0]);
+        glUniformMatrix4fv(location, 1, GL_FALSE, &projection[0][0]);
     }
     if ((location = glGetUniformLocation(program[PROG_BOID], "u_cameraPos")) != -1) {
-      glUniform3fv(location, 1, &cameraPosition[0]);
+        glUniform3fv(location, 1, &cameraPosition[0]);
     }
-  }
+}
 
-  //====================================
-  // Main loop
-  //====================================
-  void runCUDA() {
+//====================================
+// Main loop
+//====================================
+void runCUDA() {
     // Map OpenGL buffer object for writing from CUDA on a single GPU
     // No data is moved (Win & Linux). When mapped to CUDA, OpenGL should not
     // use this buffer
 
-    float4 *dptr = NULL;
-    float *dptrVertPositions = NULL;
-    float *dptrVertVelocities = NULL;
+    float4* dptr = NULL;
+    float* dptrVertPositions = NULL;
+    float* dptrVertVelocities = NULL;
 
     cudaGLMapBufferObject((void**)&dptrVertPositions, boidVBO_positions);
     cudaGLMapBufferObject((void**)&dptrVertVelocities, boidVBO_velocities);
 
-    // execute the kernel
-    #if UNIFORM_GRID && COHERENT_GRID
-    Boids::stepSimulationCoherentGrid(DT);
-    #elif UNIFORM_GRID
-    Boids::stepSimulationScatteredGrid(DT);
-    #else
-    Boids::stepSimulationNaive(DT);
-    #endif
+    // 使用运行时判断来选择模拟函数
+    switch (currentSimulationMode) {
+    case MODE_COHERENT_GRID:
+        Boids::stepSimulationCoherentGrid(DT);
+        break;
+    case MODE_SCATTERED_GRID:
+        Boids::stepSimulationScatteredGrid(DT);
+        break;
+    case MODE_NAIVE:
+    default:
+        Boids::stepSimulationNaive(DT);
+        break;
+    }
 
-    #if VISUALIZE
+#if VISUALIZE
     Boids::copyBoidsToVBO(dptrVertPositions, dptrVertVelocities);
-    #endif
+#endif
+
     // unmap buffer object
     cudaGLUnmapBufferObject(boidVBO_positions);
     cudaGLUnmapBufferObject(boidVBO_velocities);
-  }
+}
 
-  void mainLoop() {
+void mainLoop() {
     double fps = 0;
     double timebase = 0;
     int frame = 0;
 
     Boids::unitTest(); // LOOK-1.2 We run some basic example code to make sure
-                       // your CUDA development setup is ready to go.
+    // your CUDA development setup is ready to go.
 
     while (!glfwWindowShouldClose(window)) {
-      glfwPollEvents();
+        glfwPollEvents();
 
-      frame++;
-      double time = glfwGetTime();
+        frame++;
+        double time = glfwGetTime();
 
-      if (time - timebase > 1.0) {
-        fps = frame / (time - timebase);
-        timebase = time;
-        frame = 0;
-      }
+        if (time - timebase > 1.0) {
+            fps = frame / (time - timebase);
+            timebase = time;
+            frame = 0;
+        }
 
-      runCUDA();
+        runCUDA();
 
-      std::ostringstream ss;
-      ss << "[";
-      ss.precision(1);
-      ss << std::fixed << fps;
-      ss << " fps] " << deviceName;
-      glfwSetWindowTitle(window, ss.str().c_str());
+        std::ostringstream ss;
+        ss << "[";
+        ss.precision(1);
+        ss << std::fixed << fps;
+        ss << " fps] " << deviceName;
 
-      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        // 添加模式显示
+        ss << " - Mode: ";
+        switch (currentSimulationMode) {
+        case MODE_NAIVE:
+            ss << "Naive";
+            break;
+        case MODE_SCATTERED_GRID:
+            ss << "Scattered Grid";
+            break;
+        case MODE_COHERENT_GRID:
+            ss << "Coherent Grid";
+            break;
+        }
 
-      #if VISUALIZE
-      glUseProgram(program[PROG_BOID]);
-      glBindVertexArray(boidVAO);
-      glPointSize((GLfloat)pointSize);
-      glDrawElements(GL_POINTS, N_FOR_VIS + 1, GL_UNSIGNED_INT, 0);
-      glPointSize(1.0f);
+        glfwSetWindowTitle(window, ss.str().c_str());
 
-      glUseProgram(0);
-      glBindVertexArray(0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-      glfwSwapBuffers(window);
-      #endif
+#if VISUALIZE
+        glUseProgram(program[PROG_BOID]);
+        glBindVertexArray(boidVAO);
+        glPointSize((GLfloat)pointSize);
+        glDrawElements(GL_POINTS, N_FOR_VIS + 1, GL_UNSIGNED_INT, 0);
+        glPointSize(1.0f);
+
+        glUseProgram(0);
+        glBindVertexArray(0);
+
+        glfwSwapBuffers(window);
+#endif
     }
     glfwDestroyWindow(window);
     glfwTerminate();
-  }
+}
 
 
-  void errorCallback(int error, const char *description) {
+void errorCallback(int error, const char* description) {
     fprintf(stderr, "error %d: %s\n", error, description);
-  }
+}
 
-  void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
-      glfwSetWindowShouldClose(window, GL_TRUE);
+        glfwSetWindowShouldClose(window, GL_TRUE);
     }
-  }
 
-  void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
+    // 处理模拟模式切换
+    if (action == GLFW_PRESS) {
+        if (key == GLFW_KEY_1) {
+            currentSimulationMode = MODE_NAIVE;
+            std::cout << "Switched to Naive simulation mode" << std::endl;
+        }
+        else if (key == GLFW_KEY_2) {
+            currentSimulationMode = MODE_SCATTERED_GRID;
+            std::cout << "Switched to Scattered Grid simulation mode" << std::endl;
+        }
+        else if (key == GLFW_KEY_3) {
+            currentSimulationMode = MODE_COHERENT_GRID;
+            std::cout << "Switched to Coherent Grid simulation mode" << std::endl;
+        }
+    }
+}
+
+void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
     leftMousePressed = (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS);
     rightMousePressed = (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS);
-  }
+}
 
-  void mousePositionCallback(GLFWwindow* window, double xpos, double ypos) {
+void mousePositionCallback(GLFWwindow* window, double xpos, double ypos) {
     if (leftMousePressed) {
-      // compute new camera parameters
-      phi += (xpos - lastX) / width;
-      theta -= (ypos - lastY) / height;
-      theta = std::fmax(0.01f, std::fmin(theta, 3.14f));
-      updateCamera();
+        // compute new camera parameters
+        phi += (xpos - lastX) / width;
+        theta -= (ypos - lastY) / height;
+        theta = std::fmax(0.01f, std::fmin(theta, 3.14f));
+        updateCamera();
     }
     else if (rightMousePressed) {
-      zoom += (ypos - lastY) / height;
-      zoom = std::fmax(0.1f, std::fmin(zoom, 5.0f));
-      updateCamera();
+        zoom += (ypos - lastY) / height;
+        zoom = std::fmax(0.1f, std::fmin(zoom, 5.0f));
+        updateCamera();
     }
 
-	lastX = xpos;
-	lastY = ypos;
-  }
+    lastX = xpos;
+    lastY = ypos;
+}
 
-  void updateCamera() {
+void updateCamera() {
     cameraPosition.x = zoom * sin(phi) * sin(theta);
     cameraPosition.z = zoom * cos(theta);
     cameraPosition.y = zoom * cos(phi) * sin(theta);
@@ -311,6 +359,6 @@ void initShaders(GLuint * program) {
 
     glUseProgram(program[PROG_BOID]);
     if ((location = glGetUniformLocation(program[PROG_BOID], "u_projMatrix")) != -1) {
-      glUniformMatrix4fv(location, 1, GL_FALSE, &projection[0][0]);
+        glUniformMatrix4fv(location, 1, GL_FALSE, &projection[0][0]);
     }
-  }
+}
