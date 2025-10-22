@@ -16,23 +16,18 @@
 // ================
 
 // LOOK-2.1 LOOK-2.3 - toggles for UNIFORM_GRID and COHERENT_GRID
+// LINGYIN：如果没看懂项目，就不要修改这些值
 #define VISUALIZE 1
 #define UNIFORM_GRID 0
 #define COHERENT_GRID 0
 
 // LOOK-1.2 - change this to adjust particle count in the simulation
-const int N_FOR_VIS = 8192;
+// LINGYIN：总的点数，建议是 512 的倍数，我不确定我都写对了
+const int N_FOR_VIS = 8192 * 2;
 const float DT = 0.2f;
-
-// 添加模拟模式枚举
-enum SimulationMode {
-    MODE_NAIVE = 1,
-    MODE_SCATTERED_GRID = 2,
-    MODE_COHERENT_GRID = 3
-};
-
-// 添加全局变量来跟踪当前模式
-int currentSimulationMode = MODE_NAIVE;
+// LINGYIN： 模拟模式，1-4 分别对应不同的实现，这是默认的模式
+// 运行时可以通过按键 1-4 切换
+int currentSimulationMode = 4;
 
 /**
 * C main function.
@@ -209,18 +204,35 @@ void runCUDA() {
     cudaGLMapBufferObject((void**)&dptrVertPositions, boidVBO_positions);
     cudaGLMapBufferObject((void**)&dptrVertVelocities, boidVBO_velocities);
 
-    // 使用运行时判断来选择模拟函数
+    // LINGYIN：使用运行时判断来选择模拟函数
+    /*
+        你也可以新增：
+            a. 添加文件 StepSimulation_5.cu，
+			b. 将 StepSimulation_5.cu 加入 CMakeLists.txt，
+            c. switch-case 语句中添加 case 5
+			d. 在 kernel.h 中声明 void StepSimulation_5(float dt);
+			e. 在 StepSimulation_5.cu 中实现 void StepSimulation_5(float dt);
+		实际上 5 我已经帮你添加好了，它现在是一个空函数，你可以直接实现它。
+    */
     switch (currentSimulationMode) {
-    case MODE_COHERENT_GRID:
-        Boids::stepSimulationCoherentGrid(DT);
-        break;
-    case MODE_SCATTERED_GRID:
-        Boids::stepSimulationScatteredGrid(DT);
-        break;
-    case MODE_NAIVE:
-    default:
-        Boids::stepSimulationNaive(DT);
-        break;
+        case 1:
+            Boids::StepSimulation_1(DT);
+            break;
+        case 2:
+            Boids::StepSimulation_2(DT);
+            break;
+        case 3:
+            Boids::StepSimulation_3(DT);
+            break;
+        case 4:
+		    Boids::StepSimulation_4(DT);
+		    break;
+        case 5:
+            Boids::StepSimulation_5(DT);
+			break;
+        default:
+            Boids::StepSimulation_1(DT);
+            break;
     }
 
 #if VISUALIZE
@@ -262,17 +274,7 @@ void mainLoop() {
 
         // 添加模式显示
         ss << " - Mode: ";
-        switch (currentSimulationMode) {
-        case MODE_NAIVE:
-            ss << "Naive";
-            break;
-        case MODE_SCATTERED_GRID:
-            ss << "Scattered Grid";
-            break;
-        case MODE_COHERENT_GRID:
-            ss << "Coherent Grid";
-            break;
-        }
+        ss << currentSimulationMode;
 
         glfwSetWindowTitle(window, ss.str().c_str());
 
@@ -307,18 +309,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 
     // 处理模拟模式切换
     if (action == GLFW_PRESS) {
-        if (key == GLFW_KEY_1) {
-            currentSimulationMode = MODE_NAIVE;
-            std::cout << "Switched to Naive simulation mode" << std::endl;
-        }
-        else if (key == GLFW_KEY_2) {
-            currentSimulationMode = MODE_SCATTERED_GRID;
-            std::cout << "Switched to Scattered Grid simulation mode" << std::endl;
-        }
-        else if (key == GLFW_KEY_3) {
-            currentSimulationMode = MODE_COHERENT_GRID;
-            std::cout << "Switched to Coherent Grid simulation mode" << std::endl;
-        }
+		currentSimulationMode = key - GLFW_KEY_0; // Default to 0 if not 1-5
     }
 }
 

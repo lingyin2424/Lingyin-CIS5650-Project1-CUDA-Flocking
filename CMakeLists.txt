@@ -10,9 +10,9 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # Enable C++11 for host code
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 if(NOT DEFINED CMAKE_CUDA_STANDARD)
-    set(CMAKE_CUDA_STANDARD 11)
+    set(CMAKE_CUDA_STANDARD 17)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 endif()
 
@@ -57,11 +57,18 @@ set(headers
     src/kernel.h
     src/main.hpp
     src/utilityCore.hpp
+    src/kernel.cuh
     )
 
 set(sources
     src/glslUtility.cpp
     src/kernel.cu
+    src/StepSimulation_1.cu
+    src/StepSimulation_2.cu
+    src/StepSimulation_3.cu
+    src/StepSimulation_4.cu
+    src/StepSimulation_5.cu
+
     src/main.cpp
     src/utilityCore.cpp
     )
@@ -92,9 +99,4 @@ add_custom_command(
         "${CMAKE_SOURCE_DIR}/shaders"
         "$<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>/shaders"
     COMMENT "Copying shaders to runtime output directory..."
-)
-
-set_source_files_properties(
-    src/kernel.cu
-    PROPERTIES LANGUAGE CUDA
 )
