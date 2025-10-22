@@ -50,8 +50,8 @@ void Boids::StepSimulation_1(float dt) {
         dev_new_speed = dev_vel2;
         CUDA_CHECK_KERNEL();
     }
-    std::swap(dev_org_speed, dev_new_speed);
 
+    std::swap(dev_org_speed, dev_new_speed);
 
     cudaDeviceSynchronize();
 
@@ -60,6 +60,6 @@ void Boids::StepSimulation_1(float dt) {
     cudaDeviceSynchronize();
     CUDA_CHECK_KERNEL();
 
-    MoveBoids << <n / Block, Block >> > (dt, dev_pos, dev_new_speed);
-    CUDA_CHECK_KERNEL();
+    //MoveBoids << <n / Block, Block >> > (dt, dev_pos, dev_new_speed);
+    //CUDA_CHECK_KERNEL();
 }

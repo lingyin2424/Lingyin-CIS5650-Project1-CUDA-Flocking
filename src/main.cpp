@@ -23,7 +23,7 @@
 
 // LOOK-1.2 - change this to adjust particle count in the simulation
 // LINGYIN：总的点数，建议是 512 的倍数，我不确定我都写对了
-const int N_FOR_VIS = 8192 * 2;
+const int N_FOR_VIS = 4096;// 8192 * 2;
 const float DT = 0.2f;
 // LINGYIN： 模拟模式，1-4 分别对应不同的实现，这是默认的模式
 // 运行时可以通过按键 1-4 切换
